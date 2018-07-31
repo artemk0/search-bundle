@@ -13,7 +13,7 @@ interface IndexManagerInterface
 
     public function getConfiguration();
 
-    public function getFullIndexName($className);
+    public function getFullIndexName($className, $entity);
 
     public function index($entity, ObjectManager $objectManager);
 

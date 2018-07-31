@@ -72,7 +72,7 @@ class IndexManager implements IndexManagerInterface
                 }
 
                 $searchableEntities[] = new SearchableEntity(
-                    $this->getFullIndexName($className),
+                    $this->getFullIndexName($className, $entity),
                     $entity,
                     $objectManager->getClassMetadata($className),
                     $this->normalizer,
@@ -101,7 +101,7 @@ class IndexManager implements IndexManagerInterface
                 $this->assertIsSearchable($className);
 
                 $searchableEntities[] = new SearchableEntity(
-                    $this->getFullIndexName($className),
+                    $this->getFullIndexName($className, $entity),
                     $entity,
                     $objectManager->getClassMetadata($className),
                     $this->normalizer,
@@ -190,7 +190,13 @@ class IndexManager implements IndexManagerInterface
     {
         $mapping = [];
         foreach ($this->configuration['indices'] as $indexName => $indexDetails) {
-            $mapping[$indexDetails['class']] = $indexName;
+            if (strpos($indexName, ':') !== false) {
+                [, $handle] = explode(':', $indexName);
+
+                $mapping[$indexDetails['class']][$handle] = $indexName;
+            } else {
+                $mapping[$indexDetails['class']] = $indexName;
+            }
         }
 
         $this->classToIndexMapping = $mapping;
@@ -207,9 +213,16 @@ class IndexManager implements IndexManagerInterface
         $this->searchableEntities = array_unique($searchable);
     }
 
-    public function getFullIndexName($className)
+    public function getFullIndexName($className, $entity)
     {
-        return $this->configuration['prefix'].$this->classToIndexMapping[$className];
+        if (\is_callable([$entity, 'getAlgoliaHandle'])) {
+            $handle    = $entity->getAlgoliaHandle();
+            $indexName = $this->classToIndexMapping[$className][$handle];
+        } else {
+            $indexName = $this->classToIndexMapping[$className];
+        }
+
+        return $this->configuration['prefix'] . $indexName;
     }
 
     private function assertIsSearchable($className)
