@@ -28,6 +28,7 @@ class IndexManager implements IndexManagerInterface
         $this->configuration       = $configuration;
         $this->propertyAccessor    = PropertyAccess::createPropertyAccessor();
 
+        $this->expandConfiguration();
         $this->setSearchableEntities();
         $this->setClassToIndexMapping();
         $this->setClassToSerializerGroupMapping();
@@ -186,6 +187,50 @@ class IndexManager implements IndexManagerInterface
         return $this->classToSerializerGroupMapping[$className];
     }
 
+    private function expandConfiguration() : void
+    {
+        $expandedConfiguration = [];
+        foreach ($this->configuration['indices'] as $indexName => $indexDetails) {
+            if ($this->isManyClassesToOneIndexMapping($indexDetails['class'])) {
+                $indexDetails['class'] = $this->extractClassNamesFromManyClassesToOneIndexMapping($indexDetails['class']);
+            }
+
+            $expandedConfiguration[$indexName] = $indexDetails;
+        }
+
+        $this->configuration['indices'] = $expandedConfiguration;
+    }
+
+    private function isManyClassesToOneIndexMapping(string $className) : bool
+    {
+        if (strpos($className, '(') !== false && strpos($className, ')') !== false) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function extractClassNamesFromManyClassesToOneIndexMapping(string $className) : iterable
+    {
+        $namespace     = substr($className, 0, strpos($className, '('));
+        $classNamesStr = substr($className, strpos($className, '(') + 1, -1);
+        $classNames    = explode('|', $classNamesStr);
+
+        $fqcns = [];
+        foreach ($classNames as $class) {
+            $fqcns[] = $namespace . $class;
+        }
+
+        return $fqcns;
+    }
+
+    public function getBaseClass(iterable $childClassNames) : string
+    {
+        $childClassName = $childClassNames[0];
+
+        return substr($childClassName, 0, strrpos($childClassName, '\\'));
+    }
+
     private function setClassToIndexMapping()
     {
         $mapping = [];
@@ -193,9 +238,21 @@ class IndexManager implements IndexManagerInterface
             if (strpos($indexName, ':') !== false) {
                 [, $handle] = explode(':', $indexName);
 
-                $mapping[$indexDetails['class']][$handle] = $indexName;
+                if (is_array($indexDetails['class'])) {
+                    foreach ($indexDetails['class'] as $fqcn) {
+                        $mapping[$fqcn][$handle] = $indexName;
+                    }
+                } else {
+                    $mapping[$indexDetails['class']][$handle] = $indexName;
+                }
             } else {
-                $mapping[$indexDetails['class']] = $indexName;
+                if (is_array($indexDetails['class'])) {
+                    foreach ($indexDetails['class'] as $fqcn) {
+                        $mapping[$fqcn] = $indexName;
+                    }
+                } else {
+                    $mapping[$indexDetails['class']] = $indexName;
+                }
             }
         }
 
@@ -207,7 +264,13 @@ class IndexManager implements IndexManagerInterface
         $searchable = [];
 
         foreach ($this->configuration['indices'] as $name => $index) {
-            $searchable[] = $index['class'];
+            if (is_array($index['class'])) {
+                foreach ($index['class'] as $fqcn) {
+                    $searchable[] = $fqcn;
+                }
+            } else {
+                $searchable[] = $index['class'];
+            }
         }
 
         $this->searchableEntities = array_unique($searchable);
@@ -236,7 +299,13 @@ class IndexManager implements IndexManagerInterface
     {
         $mapping = [];
         foreach ($this->configuration['indices'] as $indexDetails) {
-            $mapping[$indexDetails['class']] = $indexDetails['enable_serializer_groups'];
+            if (is_array($indexDetails['class'])) {
+                foreach ($indexDetails['class'] as $fqcn) {
+                    $mapping[$fqcn] = $indexDetails['enable_serializer_groups'];
+                }
+            } else {
+                $mapping[$indexDetails['class']] = $indexDetails['enable_serializer_groups'];
+            }
         }
 
         $this->classToSerializerGroupMapping = $mapping;
@@ -246,7 +315,13 @@ class IndexManager implements IndexManagerInterface
     {
         $mapping = [];
         foreach ($this->configuration['indices'] as $indexDetails) {
-            $mapping[$indexDetails['class']] = $indexDetails['index_if'];
+            if (is_array($indexDetails['class'])) {
+                foreach ($indexDetails['class'] as $fqcn) {
+                    $mapping[$fqcn] = $indexDetails['index_if'];
+                }
+            } else {
+                $mapping[$indexDetails['class']] = $indexDetails['index_if'];
+            }
         }
 
         $this->indexIfMapping = $mapping;

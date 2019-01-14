@@ -32,8 +32,15 @@ class SearchImportCommand extends IndexCommand
         $config = $this->indexManager->getConfiguration();
 
         foreach ($entitiesToIndex as $indexName => $entityClassName) {
-            $manager = $doctrine->getManagerForClass($entityClassName);
-            $repository = $manager->getRepository($entityClassName);
+            if (is_array($entityClassName)) {
+                $baseClassName = $this->indexManager->getBaseClass($entityClassName);
+
+                $manager    = $doctrine->getManagerForClass($baseClassName);
+                $repository = $manager->getRepository($baseClassName);
+            } else {
+                $manager = $doctrine->getManagerForClass($entityClassName);
+                $repository = $manager->getRepository($entityClassName);
+            }
 
             $page = 0;
             do {
@@ -49,7 +56,7 @@ class SearchImportCommand extends IndexCommand
                     'Indexed <comment>%s / %s</comment> %s entities into %s index',
                     isset($response[$indexName]) ? $response[$indexName] : 0,
                     count($entities),
-                    $entityClassName,
+                    (is_array($entityClassName) ? implode(', ', $entityClassName) : $entityClassName),
                     '<info>' . $config['prefix'] . $indexName . '</info>'
                 ));
 
